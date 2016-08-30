@@ -547,7 +547,7 @@ class TaggedEvent(MutableBaseModel, CreatableModelMixin):
         process_guid = getattr(self, "unique_id", None)
         process_segment = getattr(self, "segment_id", 1)
         if process_guid:
-            return self._cb.select(Process, process_guid, process_segment)
+            return self._cb.select(Process, process_guid, process_segment, cluster_id=self._cluster_id)
         else:
             return None
 
@@ -1065,10 +1065,12 @@ class Process(TaggedModel):
     def new_object(cls, cb, item):
         # TODO: do we ever need to evaluate item['unique_id'] which is the id + segment id?
         # TODO: is there a better way to handle this? (see how this is called from Query._search())
-        return cb.select(Process, item['id'], long(item['segment_id']), initial_data=item)
 
-    def __init__(self, cb, procguid, segment=1, initial_data=None):
-        super(Process, self).__init__(cb, procguid)
+        cluster_id = item.pop("cluster_id", None)
+        return cb.select(Process, item['id'], long(item['segment_id']), initial_data=item, cluster_id=cluster_id)
+
+    def __init__(self, cb, procguid, segment=1, initial_data=None, cluster_id=None):
+        super(Process, self).__init__(cb, procguid, cluster_id=cluster_id)
 
         try:
             self.id = int(procguid)
@@ -1093,7 +1095,11 @@ class Process(TaggedModel):
 
     def _build_api_request_uri(self):
         # TODO: how do we handle process segments?
-        return "/api/{0}/process/{1}/{2}/event".format(self._process_event_api, self.id, self.segment)
+        uri = "/api/{0}/process/{1}/{2}/event".format(self._process_event_api, self.id, self.segment)
+        if self._cluster_id:
+            uri += "?cluster_id={}".format(self._cluster_id)
+
+        return uri
 
     def _parse(self, obj):
         self._info = obj.get('process', {})
@@ -1214,9 +1220,10 @@ class Process(TaggedModel):
         parent_id = self._attribute('parent_id', None)
 
         if parent_unique_id:
-            return self._cb.select(self.__class__, self.get_correct_unique_id(parent_id, parent_unique_id), 1)
+            return self._cb.select(self.__class__, self.get_correct_unique_id(parent_id, parent_unique_id), 1,
+                                   cluster_id=self._cluster_id)
         elif parent_id:
-            return self._cb.select(self.__class__, parent_id, 1)
+            return self._cb.select(self.__class__, parent_id, 1, cluster_id=self._cluster_id)
         else:
             return None  # no parent, top of the tree
 
@@ -1230,7 +1237,7 @@ class Process(TaggedModel):
 
     @property
     def sensor(self):
-        return self._cb.select(Sensor, int(self._attribute('sensor_id', 0)))
+        return self._cb.select(Sensor, int(self._attribute('sensor_id', 0)), cluster_id=self._cluster_id)
 
     @property
     def webui_link(self):
@@ -1323,7 +1330,7 @@ class CbModLoadEvent(CbEvent):
 
     @property
     def binary(self):
-        return self.parent._cb.select(Binary, self.md5, initial_data=self.binary_data)
+        return self.parent._cb.select(Binary, self.md5, initial_data=self.binary_data, cluster_id=self._cluster_id)
 
     @property
     def is_signed(self):
@@ -1361,7 +1368,7 @@ class CbChildProcEvent(CbEvent):
 
     @property
     def process(self):
-        return self.parent._cb.select(Process, self.procguid, 1)
+        return self.parent._cb.select(Process, self.procguid, 1, cluster_id=self.process._cluster_id)
 
 
 class CbCrossProcEvent(CbEvent):
@@ -1372,7 +1379,7 @@ class CbCrossProcEvent(CbEvent):
 
     @property
     def target_proc(self):
-        return self.parent._cb.select(Process, self.target_procguid, 1)
+        return self.parent._cb.select(Process, self.target_procguid, 1, cluster_id=self.process._cluster_id)
 
     def has_permission(self, perm):
         if perm in r_windows_rights_dict:

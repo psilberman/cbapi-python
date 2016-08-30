@@ -163,7 +163,8 @@ class BinaryFieldDescriptor(FieldDescriptor):
 class NewBaseModel(object):
     primary_key = "id"
 
-    def __init__(self, cb, model_unique_id=None, initial_data=None, force_init=False, full_doc=False):
+    def __init__(self, cb, model_unique_id=None, initial_data=None, force_init=False, full_doc=False,
+                 cluster_id=None):
         """
         Base model for
         :param cb:
@@ -185,6 +186,8 @@ class NewBaseModel(object):
 
         self._dirty_attributes = {}
         self._full_init = full_doc
+
+        self._cluster_id = cluster_id
 
         if force_init:
             self.refresh()
@@ -244,9 +247,14 @@ class NewBaseModel(object):
     def _build_api_request_uri(self):
         baseuri = self.__class__.__dict__.get('urlobject', None)
         if self._model_unique_id is not None:
-            return baseuri + "/%s" % self._model_unique_id
+            uri = baseuri + "/%s" % self._model_unique_id
         else:
-            return baseuri
+            uri = baseuri
+
+        if self._cluster_id:
+            uri += "?cluster_id={}".format(self._cluster_id)
+
+        return uri
 
     def _retrieve_cb_info(self):
         request_uri = self._build_api_request_uri()
@@ -264,11 +272,16 @@ class NewBaseModel(object):
 
     def __repr__(self):
         if self._model_unique_id is not None:
-            return "<%s.%s: id %s> @ %s" % (self.__class__.__module__, self.__class__.__name__, self._model_unique_id,
+            desc = "<%s.%s: id %s> @ %s" % (self.__class__.__module__, self.__class__.__name__, self._model_unique_id,
                                             self._cb.session.server)
         else:
-            return "<%s.%s object at %s> @ %s" % (self.__class__.__module__, self.__class__.__name__, hex(id(self)),
+            desc = "<%s.%s object at %s> @ %s" % (self.__class__.__module__, self.__class__.__name__, hex(id(self)),
                                                   self._cb.session.server)
+
+        if self._cluster_id:
+            desc += " (cluster ID %d)" % self._cluster_id
+
+        return desc
 
     def __str__(self):
         lines = []
@@ -303,7 +316,7 @@ class NewBaseModel(object):
         if not field_value:             # NOTE THAT this is assuming no legitimate object has an ID of 0 (zero)
             return None                 # - passing 0 to .select() for the field_value will return a Query object
 
-        return self._cb.select(join_cls, field_value)
+        return self._cb.select(join_cls, field_value, cluster_id=self._cluster_id)
 
 
 class MutableBaseModel(NewBaseModel):

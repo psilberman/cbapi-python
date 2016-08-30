@@ -6,7 +6,7 @@ from six.moves import urllib
 
 from distutils.version import LooseVersion
 from ..connection import BaseAPI
-from .models import Process, Binary, Watchlist, Investigation, Alert, ThreatReport
+from .models import Process, Binary, Watchlist, Investigation, Alert, ThreatReport, Sensor, SensorGroup
 from ..errors import UnauthorizedError, ApiError
 from ..utils import convert_query_params
 from ..query import PaginatedQuery
@@ -55,6 +55,8 @@ class CbEnterpriseResponseAPI(BaseAPI):
     >>> from cbapi import CbEnterpriseResponseAPI
     >>> cb = CbEnterpriseResponseAPI(profile="production")
     """
+
+    _federated_models = [ Process, Binary, Sensor, SensorGroup ]
     def __init__(self, *args, **kwargs):
         super(CbEnterpriseResponseAPI, self).__init__(product_name="response", *args, **kwargs)
 
@@ -66,7 +68,11 @@ class CbEnterpriseResponseAPI(BaseAPI):
 
         log.debug('Connected to Cb server version %s at %s' % (self.server_info['version'], self.session.server))
         self.cb_server_version = LooseVersion(self.server_info['version'])
-        if self.cb_server_version < LooseVersion('5.0'):
+        self._federated_server = False
+
+        if self.server_info.get("federated", False):
+            self._federated_server = True
+        elif self.cb_server_version < LooseVersion('5.0'):
             raise ApiError("CbEnterpriseResponseAPI only supports Cb servers version >= 5.0.0")
 
         self._lr_scheduler = None
@@ -136,6 +142,12 @@ class CbEnterpriseResponseAPI(BaseAPI):
         if len(parts) < 2:
             raise ApiError("URL endpoint does not include a unique ID: %s" % uri)
 
+        cluster_id = None
+        if self._federated_server:
+            if frag[1] == 'cluster':
+                cluster_id = frag[2]
+                frag = [frag[0]] + frag[3:]
+
         if frag.startswith('analyze'):
             (analyze, procid, segment) = parts[:3]
             return self.select(Process, procid, int(segment))
@@ -163,6 +175,12 @@ class CbEnterpriseResponseAPI(BaseAPI):
         elif frag.startswith('threat-details'):
             (threatdetails, feed_id, feed_title) = parts[:3]
             return self.select(ThreatReport, "%s:%s" % (feed_id, feed_title))
+        elif frag == 'hosts':
+            (hosts, group_id) = parts[:2]
+            return self.select(SensorGroup, group_id)
+        elif frag == 'host':
+            (host, sensor_id) = parts[:2]
+            return self.select(Sensor, sensor_id)
         elif frag.startswith('login') or not o.fragment:
             return self
         else:
@@ -173,6 +191,18 @@ class CbEnterpriseResponseAPI(BaseAPI):
 
     def _close_lr_session(self, sensor_id):
         return self.live_response.close_session(sensor_id)
+
+    def select(self, cls, *args, **kwargs):
+        if self._federated_server:
+            cluster_id = kwargs.get("cluster_id", None)
+            unique_id = kwargs.get("unique_id", None)
+            if not cluster_id and unique_id:
+                raise ApiError("Need Cluster ID when selecting an object on a Federated Server")
+
+            if cls not in self._federated_models:
+                raise ApiError("Model {} not supported with Federated Servers".format(cls.__name__))
+
+        return super(CbEnterpriseResponseAPI, self).select(cls, *args, **kwargs)
 
 
 class Query(PaginatedQuery):

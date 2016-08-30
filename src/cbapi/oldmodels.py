@@ -43,12 +43,15 @@ def immutable(cls):
 
 @python_2_unicode_compatible
 class BaseModel(object):
-    def __init__(self, cb, model_unique_id=None, initial_data=None):
+    def __init__(self, cb, model_unique_id=None, initial_data=None, cluster_id=None):
         self._cb = cb
+
         if model_unique_id is not None:
             self._model_unique_id = str(model_unique_id)
         else:
             self._model_unique_id = None
+
+        self._cluster_id = cluster_id
 
         self._full_init = False
         self._info = {}
@@ -97,9 +100,14 @@ class BaseModel(object):
     def _build_api_request_uri(self):
         baseuri = self.__class__.__dict__.get('urlobject', None)
         if self._model_unique_id is not None:
-            return baseuri + "/%s" % self._model_unique_id
+            uri = baseuri + "/%s" % self._model_unique_id
         else:
-            return baseuri
+            uri = baseuri
+
+        if self._cluster_id:
+            uri += "?cluster_id={}".format(self._cluster_id)
+
+        return uri
 
     @property
     def webui_link(self):
@@ -158,18 +166,23 @@ class BaseModel(object):
             return default_val
 
     def __str__(self):
-        ret = '{0:s}.{1:s}:\n'.format(self.__class__.__module__, self.__class__.__name__)
+        ret = u'{0:s}.{1:s}:\n'.format(self.__class__.__module__, self.__class__.__name__)
         if self.webui_link:
-            ret += "-> available via web UI at %s\n" % self.webui_link
+            ret += u"-> available via web UI at %s\n" % self.webui_link
 
-        ret += u'\n'.join(['%-20s : %s' %
+        ret += u'\n'.join([u'%-20s : %s' %
                            (a, getattr(self, a, "")) for a in self._stat_titles])
 
         return ret
 
     def __repr__(self):
-        return "<%s.%s: id %s> @ %s" % (self.__class__.__module__, self.__class__.__name__, self._model_unique_id,
+        desc = "<%s.%s: id %s> @ %s" % (self.__class__.__module__, self.__class__.__name__, self._model_unique_id,
                                         self._cb.session.server)
+
+        if self._cluster_id:
+            desc += " (cluster ID %d)" % self._cluster_id
+
+        return desc
 
     @property
     def original_document(self):
