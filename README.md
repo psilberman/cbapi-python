@@ -144,3 +144,4 @@ The possible options for each credential profile are:
 
 Future versions of cbapi will also provide the ability to "pin" the TLS certificate so as to provide certificate
 verification on self-signed or internal CA signed certificates.
+
