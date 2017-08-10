@@ -1,0 +1,2 @@
+{"mac": "000000"}
+{"host":"zestep-centos-sensor1"}
