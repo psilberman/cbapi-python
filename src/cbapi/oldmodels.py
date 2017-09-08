@@ -95,6 +95,9 @@ class BaseModel(object):
             self._last_refresh_time = time.time()
 
     def _parse(self, obj):
+        # handle case where obj is None now that we aren't reaising object not found..
+        if not obj:
+            obj = {}
         self._info = obj
 
     def _build_api_request_uri(self):
