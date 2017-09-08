@@ -144,7 +144,7 @@ class BaseModel(object):
         if attrname in self._info:
             return self._info[attrname]
 
-        if default is not None:
+        if default is not None or cfg.suppress_not_found:
             return default
 
         raise AttributeError()
