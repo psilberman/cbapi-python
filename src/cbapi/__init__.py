@@ -11,6 +11,16 @@ try:
 except Exception:
     __version__ = 'dev'
 
+
+class CbCfg(object):
+    def __init__(self):
+        self.suppress_not_found = False
+
+cfg = None
+
+if cfg is None:
+    cfg = CbCfg()
+
 # New API as of cbapi 0.9.0
 from .response.rest_api import CbEnterpriseResponseAPI, CbResponseAPI
 from .protection.rest_api import CbEnterpriseProtectionAPI, CbProtectionAPI
@@ -22,3 +32,4 @@ if six.PY2:
     from .legacy.cbapi import CbApi
     from .legacy import util
     from .legacy.bit9api import bit9Api
+

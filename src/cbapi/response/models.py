@@ -2170,6 +2170,9 @@ class Process(TaggedModel):
             super(Process, self)._retrieve_cb_info(query_parameters)
 
     def _parse(self, obj):
+        if not obj:
+            return
+
         if "process" in obj:
             self._info = obj.get("process", {})
             self.__parent_info = obj.get("parent", {})

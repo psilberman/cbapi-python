@@ -10,6 +10,7 @@ import base64
 import os.path
 from cbapi.six import iteritems, add_metaclass
 from cbapi.six.moves import range
+from cbapi import cfg 
 from .response.utils import convert_from_cb, convert_to_cb
 import yaml
 import json
@@ -218,7 +219,10 @@ class NewBaseModel(object):
         if item in self._info:
             return self._info[item]
         else:
-            raise
+            if cfg.suppress_not_found:
+                return None
+            # XXX: This needs to raise some kind of type...
+            raise AttributeError('Field {} is not present'.format(item))
 
     def __setattr__(self, attrname, val):
         if attrname.startswith("_"):

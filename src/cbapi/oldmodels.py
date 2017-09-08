@@ -7,6 +7,7 @@ import time
 import json
 
 from cbapi.six import python_2_unicode_compatible, iteritems
+from cbapi import cfg 
 
 from .errors import ServerError
 import logging
@@ -15,7 +16,6 @@ log = logging.getLogger(__name__)
 
 class CreatableModelMixin(object):
     pass
-
 
 # TODO: this doesn't exactly do what I want... this needs to be cleaned up before release
 def immutable(cls):
@@ -90,7 +90,7 @@ class BaseModel(object):
     def _retrieve_cb_info(self, query_parameters=None):
         if self._model_unique_id is not None:
             request_uri = self._build_api_request_uri()
-            self._parse(self._cb.get_object(request_uri, query_parameters=query_parameters))
+            self._parse(self._cb.get_object(request_uri, query_parameters=query_parameters, suppress_not_found=cfg.suppress_not_found))
             self._full_init = True
             self._last_refresh_time = time.time()
 

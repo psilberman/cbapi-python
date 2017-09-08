@@ -139,6 +139,7 @@ class Connection(object):
 
         verify_ssl = kwargs.pop('verify', None) or self.ssl_verify
         proxies = kwargs.pop('proxies', None) or self.proxies
+        suppress_not_found = kwargs.pop('suppress_not_found', False)
 
         new_headers = kwargs.pop('headers', None)
         if new_headers:
@@ -168,7 +169,11 @@ class Connection(object):
             raise ApiError("Unknown exception when connecting to server: {0:s}".format(str(e)),
                            original_exception=e)
         else:
-            if r.status_code == 404:
+            # Allow callers to toggle if we throw an ObjectNotFoundError. This is useful for operations
+            # that poll on objects that have not yet hit the server shouldn't have to catch this exception.
+            if r.status_code == 404 and suppress_not_found:
+                return r
+            elif r.status_code == 404:
                 raise ObjectNotFoundError(uri=uri, message=r.text)
             elif r.status_code == 401:
                 raise UnauthorizedError(uri=uri, action=method, message=r.text)
@@ -226,17 +231,19 @@ class BaseAPI(object):
         else:
             raise ServerError(ret.status_code, "".format(ret.content), )
 
-    def get_object(self, uri, query_parameters=None, default=None):
+    def get_object(self, uri, query_parameters=None, default=None, **kwargs):
         if query_parameters:
             uri += '?%s' % (urllib.parse.urlencode(sorted(query_parameters)))
 
-        result = self.api_json_request("GET", uri)
+        suppress_not_found = kwargs.get('suppress_not_found', False)
+
+        result = self.api_json_request("GET", uri, **kwargs)
         if result.status_code == 200:
             try:
                 return result.json()
             except:
                 raise ServerError(result.status_code, "Cannot parse response as JSON: {0:s}".format(result.content))
-        elif result.status_code == 204:
+        elif result.status_code == 204 or suppress_not_found:
             # empty response
             return default
         else:
